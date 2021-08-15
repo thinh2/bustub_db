@@ -15,12 +15,13 @@
 #include <random>
 #include <string>
 #include "gtest/gtest.h"
+#include "common/logger.h"
 
 namespace bustub {
 
 // NOLINTNEXTLINE
 // Check whether pages containing terminal characters can be recovered
-TEST(BufferPoolManagerTest, DISABLED_BinaryDataTest) {
+TEST(BufferPoolManagerTest, BinaryDataTest) {
   const std::string db_name = "test.db";
   const size_t buffer_pool_size = 10;
 
@@ -86,7 +87,7 @@ TEST(BufferPoolManagerTest, DISABLED_BinaryDataTest) {
 }
 
 // NOLINTNEXTLINE
-TEST(BufferPoolManagerTest, DISABLED_SampleTest) {
+TEST(BufferPoolManagerTest, SampleTest) {
   const std::string db_name = "test.db";
   const size_t buffer_pool_size = 10;
 
@@ -131,6 +132,7 @@ TEST(BufferPoolManagerTest, DISABLED_SampleTest) {
   // now be pinned. Fetching page 0 should fail.
   EXPECT_EQ(true, bpm->UnpinPage(0, true));
   EXPECT_NE(nullptr, bpm->NewPage(&page_id_temp));
+  LOG_DEBUG("fetch page 0 test");
   EXPECT_EQ(nullptr, bpm->FetchPage(0));
 
   // Shutdown the disk manager and remove the temporary file we created.

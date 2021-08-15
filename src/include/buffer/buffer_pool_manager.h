@@ -97,6 +97,9 @@ class BufferPoolManager {
   /** @return size of the buffer pool */
   size_t GetPoolSize() { return pool_size_; }
 
+ private:
+  bool AllPagePinned();
+  frame_id_t GetFreeFrame();
  protected:
   /**
    * Grading function. Do not modify!
