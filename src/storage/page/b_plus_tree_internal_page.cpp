@@ -30,8 +30,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id
   SetParentPageId(parent_id);
   SetPageType(IndexPageType::INTERNAL_PAGE);
   SetSize(0);
-  SetMaxSize(max_size - 1);
-  //array = *(MappingType *)malloc(sizeof(MappingType) * GetMaxSize());
+  SetMaxSize(max_size);
 }
 
 /*
@@ -87,7 +86,7 @@ ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key, const KeyCo
     return ValueAt(0);
   }
   for (int i = 1; i < GetSize(); i++) {
-    if (comparator(KeyAt(i), key) == -1) {
+    if (comparator(KeyAt(i), key) <= 0) {
       if (i == GetSize() - 1) {
         return ValueAt(i);
       } else if (comparator(key, KeyAt(i + 1)) == -1) {
@@ -131,7 +130,7 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(const ValueType &old_value, 
     if (isSwap) {
       std::swap(array[idx], array[GetSize() - 1]);
     }
-    if (old_value == new_value) {
+    if (array[idx].second == old_value) {
       isSwap = true;
     }
   }
@@ -147,10 +146,10 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(const ValueType &old_value, 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *recipient,
                                                 BufferPoolManager *buffer_pool_manager) {
-  int new_size = (GetSize() + 1) / 2;
+  int new_size = GetSize() / 2;
   int recipient_size = GetSize() - new_size;
   recipient->CopyNFrom(&array[new_size], recipient_size, buffer_pool_manager);
-  memset(array + new_size - 1, 0, sizeof(MappingType) * recipient_size); // zero
+  memset(array + new_size, 0, sizeof(MappingType) * recipient_size); // zero
   SetSize(new_size);
 }
 

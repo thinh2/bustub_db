@@ -23,7 +23,7 @@ INDEX_TEMPLATE_ARGUMENTS
 class IndexIterator {
  public:
   // you may define your own constructor based on your member variables
-  IndexIterator();
+  IndexIterator(BufferPoolManager *bpm, page_id_t curr_page_id_, int curr_index_, bool is_end_);
   ~IndexIterator();
 
   bool isEnd();
@@ -32,12 +32,21 @@ class IndexIterator {
 
   IndexIterator &operator++();
 
-  bool operator==(const IndexIterator &itr) const { throw std::runtime_error("unimplemented"); }
+  bool operator==(const IndexIterator &itr) const {
+    return (this->is_end_ == itr.is_end_ && itr.curr_page_id_ == this->curr_page_id_ && itr.curr_index_ == this->curr_index_);
+  }
 
-  bool operator!=(const IndexIterator &itr) const { throw std::runtime_error("unimplemented"); }
+  bool operator!=(const IndexIterator &itr) const {
+    return (this->is_end_ != itr.is_end_ || itr.curr_page_id_ != this->curr_page_id_ || itr.curr_index_ != this->curr_index_);
+  }
 
  private:
   // add your own private member variables here
+  page_id_t curr_page_id_;
+  int curr_index_;
+  BufferPoolManager *buffer_pool_manager_;
+  bool is_end_;
+  MappingType iter_val_;
 };
 
 }  // namespace bustub

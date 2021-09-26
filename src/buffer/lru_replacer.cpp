@@ -26,6 +26,9 @@ bool LRUReplacer::Victim(frame_id_t *frame_id) {
         frame_id = nullptr;
         return false;
     }
+    /*for (auto val : lru_list) {
+        LOG_DEBUG("lru_list: frame_id %d", val);
+    }*/
     std::list<frame_id_t>::iterator lru_iter = lru_list.end();
     std::advance(lru_iter, -1);
     
@@ -47,9 +50,6 @@ void LRUReplacer::Pin(frame_id_t frame_id) {
 void LRUReplacer::Unpin(frame_id_t frame_id) {
     if (frame_map.find(frame_id) != frame_map.end()) {
         return;
-    }
-    for (auto val : lru_list) {
-        LOG_DEBUG("lru_list: frame_id %d", val);
     }
     lru_list.push_front(frame_id);
     frame_map[frame_id] = lru_list.begin();

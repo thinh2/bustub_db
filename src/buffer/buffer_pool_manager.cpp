@@ -46,6 +46,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
   if (page_table_.find(page_id) != page_table_.end()) {
     frame_id_t frame_id = page_table_[page_id];
     replacer_->Pin(frame_id);
+    pages_[frame_id].pin_count_++;
     return &pages_[frame_id];
   }
 
@@ -53,7 +54,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
     return nullptr;
   }
   frame_id_t replace_frame = GetFreeFrame();
-  LOG_DEBUG("fetch free page page_id %d, frame_id %d", page_id, replace_frame);
+  //LOG_DEBUG("fetch free page page_id %d, frame_id %d", page_id, replace_frame);
 
   if (pages_[replace_frame].IsDirty()) {
     FlushPageImpl(pages_[replace_frame].GetPageId());
@@ -71,7 +72,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
   pages_[replace_frame].page_id_ = page_id;
   auto page_data = pages_[replace_frame].GetData();
   disk_manager_->ReadPage(page_id, page_data);
-  LOG_DEBUG("page_id is %d", page_id);
+  //LOG_DEBUG("page_id is %d", page_id);
   replacer_->Pin(replace_frame);
 
   return &pages_[replace_frame];
@@ -82,9 +83,9 @@ bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty) {
   if (pages_[frame_id].pin_count_ <= 0) {
     return false;
   }
-  pages_[frame_id].is_dirty_ = is_dirty;
+  pages_[frame_id].is_dirty_ |= is_dirty;
   pages_[frame_id].pin_count_--;
-  LOG_DEBUG("page_id %d, frame_id %d, pin_count %d", page_id, frame_id, pages_[frame_id].GetPinCount());
+  //LOG_DEBUG("page_id %d, frame_id %d, pin_count %d", page_id, frame_id, pages_[frame_id].GetPinCount());
   if (pages_[frame_id].GetPinCount() == 0) {
     replacer_->Unpin(frame_id);
   }
@@ -106,6 +107,10 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
   // 3.   Update P's metadata, zero out memory and add P to the page table.
   // 4.   Set the page ID output parameter. Return a pointer to P.
   *page_id = disk_manager_->AllocatePage();
+  /*for (auto val : page_table_) {
+    LOG_DEBUG("page_table_: page_id %d, frame_id %d", val.first, val.second);
+  }*/
+
   if (AllPagePinned()) {
     return nullptr;
   }
@@ -113,10 +118,7 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
   frame_id_t free_frame = GetFreeFrame();
   Page *victim_page = &pages_[free_frame];
 
-  for (auto val : page_table_) {
-    LOG_DEBUG("page_table_: page_id %d, frame_id %d", val.first, val.second);
-  }
-  LOG_DEBUG("victim page %d, replace page %d", victim_page->GetPageId(), *page_id);
+  //LOG_DEBUG("victim page %d, replace page %d", victim_page->GetPageId(), *page_id);
   if (victim_page->IsDirty()) {
     FlushPageImpl(victim_page->GetPageId());
   }
@@ -167,7 +169,7 @@ bool BufferPoolManager::AllPagePinned() {
 
 frame_id_t BufferPoolManager::GetFreeFrame() {
   frame_id_t free_frame;
-  LOG_DEBUG("free_list size %d", static_cast<int>(free_list_.size()));
+  //LOG_DEBUG("free_list size %d", static_cast<int>(free_list_.size()));
   if (!free_list_.empty()) {
     free_frame = free_list_.front();
     free_list_.pop_front();

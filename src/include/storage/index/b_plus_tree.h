@@ -58,8 +58,10 @@ class BPlusTree {
   INDEXITERATOR_TYPE begin();
   INDEXITERATOR_TYPE Begin(const KeyType &key);
   INDEXITERATOR_TYPE end();
+  friend class INDEXITERATOR_TYPE;
 
   void Print(BufferPoolManager *bpm) {
+    LOG_DEBUG("print with root page id %d", root_page_id_);
     ToString(reinterpret_cast<BPlusTreePage *>(bpm->FetchPage(root_page_id_)->GetData()), bpm);
   }
 

@@ -22,7 +22,7 @@ bool BPlusTreePage::IsLeafPage() const {
 }
 
 bool BPlusTreePage::IsRootPage() const {
-  return false; // how to check BPluseTreePage is root page or not ?
+  return GetParentPageId() == -1;
 }
 void BPlusTreePage::SetPageType(IndexPageType page_type) {
   page_type_ = page_type;

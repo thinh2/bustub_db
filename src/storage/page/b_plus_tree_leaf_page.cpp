@@ -15,6 +15,7 @@
 #include "common/rid.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
 #include <utility>
+#include "common/logger.h"
 
 namespace bustub {
 
@@ -33,7 +34,8 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, in
   SetParentPageId(parent_id);
   SetPageType(IndexPageType::LEAF_PAGE);
   SetSize(0);
-  SetMaxSize(max_size - 1);
+  SetMaxSize(max_size);
+  SetNextPageId(INVALID_PAGE_ID);
   //array = *(MappingType *)malloc(sizeof(MappingType) * GetMaxSize());
 }
 
@@ -87,9 +89,10 @@ const MappingType &B_PLUS_TREE_LEAF_PAGE_TYPE::GetItem(int index) {
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &value, const KeyComparator &comparator) {
   SetSize(GetSize() + 1);
+  LOG_DEBUG("size after insert %d", GetSize());
   array[GetSize() - 1] = std::make_pair(key, value); // 1, 2, 4, 5, 3
-  for (int idx = GetSize() - 1; idx >= 1; idx++) {
-    if (comparator(array[idx].first, array[idx - 1].first) < 0) {
+  for (int idx = GetSize() - 1; idx >= 1; idx--) {
+    if (comparator(array[idx - 1].first, array[idx].first) > 0) {
       std::swap(array[idx], array[idx - 1]);
     }
   }
@@ -106,6 +109,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(BPlusTreeLeafPage *recipient, BufferPoolManager *buffer_pool_manager __attribute__((__unused__))) {
   int new_size = (GetSize() + 1) / 2;
   int recipient_size = GetSize() - new_size;
+ // LOG_DEBUG("leaf page move half to %d, %d", new_size, recipient_size);
   recipient->CopyNFrom(array + new_size, recipient_size);
   SetSize(new_size);
   memset(array + new_size, 0, sizeof(MappingType) * recipient_size);
