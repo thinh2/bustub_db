@@ -149,17 +149,15 @@ template <typename N>
 N *BPLUSTREE_TYPE::Split(N *node) {
   page_id_t new_page_id;
   auto page = buffer_pool_manager_->NewPage(&new_page_id);
-  if (new_page_id == 0) {
-    LOG_DEBUG("failed to create new page for page %d", node->GetPageId());
-  }
+  LOG_DEBUG("new_page_id %d", new_page_id);
   N *recipient_page = reinterpret_cast<N *>(page->GetData());
-  if (recipient_page->IsLeafPage()) {
+  if (node->IsLeafPage()) {
     recipient_page->Init(new_page_id, INVALID_PAGE_ID, internal_max_size_);
   } else {
     recipient_page->Init(new_page_id, INVALID_PAGE_ID, leaf_max_size_);
-  } // TODO: add init with internal/leaf max size also
+  }
   node->MoveHalfTo(recipient_page, buffer_pool_manager_);
-//  LOG_DEBUG("split success recipient_page %d, original_page %d", new_page_id, node->GetPageId());
+  LOG_DEBUG("split success recipient_page %d, original_page %d", new_page_id, node->GetPageId());
   return recipient_page;
 }
 
@@ -180,6 +178,10 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
   if (old_node->IsRootPage()) {
     page_id_t new_root_page_id;
     auto new_page = buffer_pool_manager_->NewPage(&new_root_page_id);
+    if (new_page == nullptr) {
+      throw std::invalid_argument("invalid page");
+    }
+
     InternalPage *new_root_page = reinterpret_cast<InternalPage *>(new_page->GetData());
     new_root_page->Init(new_root_page_id, INVALID_PAGE_ID, internal_max_size_);
     new_root_page->PopulateNewRoot(old_node->GetPageId(), key, new_node->GetPageId());
@@ -211,7 +213,9 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
     buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
     return;
   } else {
+    new_node->SetParentPageId(parent_page_id);
     parent_page->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
+    LOG_DEBUG("[InsertToParent BeforeSplit] old_node %d, key %lld, new_node %d", old_node->GetPageId(), key.ToString(), new_node->GetPageId());
     InternalPage *new_parent_page = Split(parent_page);
     LOG_DEBUG("[InsertToParent Split] old_node %d, key %lld, new_node %d", old_node->GetPageId(), key.ToString(), new_node->GetPageId());
     buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
@@ -324,13 +328,7 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
   page_id_t leaf_page_id_ = FindLeafPage(key)->GetPageId();
   LOG_DEBUG("start page_id iterator %d", leaf_page_id_);
   LeafPage *leaf_page_ = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(leaf_page_id_)->GetData());
-  int idx = 0;
-  for (int i = 0; i < leaf_page_->GetSize(); i++) {
-    if (comparator_(leaf_page_->GetItem(i).first, key) == 0) {
-      idx = i;
-      break;
-    }
-  }
+  int idx = leaf_page_->KeyIndex(key, comparator_);
   buffer_pool_manager_->UnpinPage(leaf_page_id_, false);
   return INDEXITERATOR_TYPE(buffer_pool_manager_, leaf_page_id_, idx, false);
 }
@@ -366,15 +364,15 @@ Page *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key, bool leftMost) {
     } else {
       next_page = curr_internal_page->Lookup(key, comparator_);
     }
-    LOG_DEBUG("curr_internal_page %d, next_page %d", curr_bplus_page->GetPageId(), next_page);
+    //LOG_DEBUG("curr_internal_page %d, next_page %d", curr_bplus_page->GetPageId(), next_page);
     if (next_page == INVALID_PAGE_ID) {
       break;
     }
     buffer_pool_manager_->UnpinPage(curr_bplus_page->GetPageId(), false);
-    LOG_DEBUG("curr_internal_page %d, next_page %d", curr_bplus_page->GetPageId(), next_page);
+    //LOG_DEBUG("curr_internal_page %d, next_page %d", curr_bplus_page->GetPageId(), next_page);
     curr_page = buffer_pool_manager_->FetchPage(next_page);
     curr_bplus_page = reinterpret_cast<BPlusTreePage *>(curr_page->GetData());
-    LOG_DEBUG("new_curr_page %d, new_curr_blus_page %d, parent page_id %d", curr_page->GetPageId(), curr_bplus_page->GetPageId(), curr_bplus_page->GetParentPageId());
+    //LOG_DEBUG("new_curr_page %d, new_curr_blus_page %d, parent page_id %d", curr_page->GetPageId(), curr_bplus_page->GetPageId(), curr_bplus_page->GetParentPageId());
   }
   return curr_page;
 }

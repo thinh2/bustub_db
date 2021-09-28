@@ -81,6 +81,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
 bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty) {
   frame_id_t frame_id = page_table_[page_id];
   if (pages_[frame_id].pin_count_ <= 0) {
+    replacer_->Unpin(frame_id);
     return false;
   }
   pages_[frame_id].is_dirty_ |= is_dirty;
@@ -107,9 +108,9 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
   // 3.   Update P's metadata, zero out memory and add P to the page table.
   // 4.   Set the page ID output parameter. Return a pointer to P.
   *page_id = disk_manager_->AllocatePage();
-  /*for (auto val : page_table_) {
+  for (auto val : page_table_) {
     LOG_DEBUG("page_table_: page_id %d, frame_id %d", val.first, val.second);
-  }*/
+  }
 
   if (AllPagePinned()) {
     return nullptr;
@@ -118,7 +119,7 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
   frame_id_t free_frame = GetFreeFrame();
   Page *victim_page = &pages_[free_frame];
 
-  //LOG_DEBUG("victim page %d, replace page %d", victim_page->GetPageId(), *page_id);
+  LOG_DEBUG("victim page %d, replace page %d", victim_page->GetPageId(), *page_id);
   if (victim_page->IsDirty()) {
     FlushPageImpl(victim_page->GetPageId());
   }
@@ -126,10 +127,11 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
 
   victim_page->ResetMemory();
   victim_page->page_id_ = *page_id;
-  victim_page->pin_count_ = 1;
-  victim_page->is_dirty_ = false;
+  victim_page->pin_count_ = 0;
+  victim_page->is_dirty_ = true;
   replacer_->Pin(free_frame);
   page_table_[victim_page->page_id_] = free_frame;
+  LOG_DEBUG("success swap");
   return victim_page;
 }
 

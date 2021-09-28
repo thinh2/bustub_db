@@ -11,6 +11,7 @@
 
 #include <iostream>
 #include <sstream>
+#include "common/logger.h"
 
 #include "common/exception.h"
 #include "storage/page/b_plus_tree_internal_page.h"
@@ -149,6 +150,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *recipient
   int new_size = GetSize() / 2;
   int recipient_size = GetSize() - new_size;
   recipient->CopyNFrom(&array[new_size], recipient_size, buffer_pool_manager);
+  LOG_DEBUG("success");
   memset(array + new_size, 0, sizeof(MappingType) * recipient_size); // zero
   SetSize(new_size);
 }
@@ -167,7 +169,11 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyNFrom(MappingType *items, int size, Buf
   SetSize(size);
   memcpy(array, items, sizeof(MappingType) * size);
   for (int idx = 0; idx < size; idx++) {
+    LOG_DEBUG("page id %d", array[idx].second);
     bustub::Page *page = buffer_pool_manager->FetchPage(array[idx].second);
+    if (page == NULL) {
+      LOG_DEBUG("null page id");
+    }
     // convert page to B_plus_page
     // set parent_page_id = this->PageId;
     // persist to disk

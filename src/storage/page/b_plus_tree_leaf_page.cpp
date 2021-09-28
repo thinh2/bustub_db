@@ -57,7 +57,16 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) {
  * NOTE: This method is only used when generating index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(const KeyType &key, const KeyComparator &comparator) const { return 0; }
+int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(const KeyType &key, const KeyComparator &comparator) const {
+  int idx = 0;
+  for (int i = 0; i < GetSize(); i++) {
+    if (comparator(array[i].first, key) >= 0) {
+      idx = i;
+      break;
+    }
+  }
+  return idx;
+}
 
 /*
  * Helper method to find and return the key associated with input "index"(a.k.a
