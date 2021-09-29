@@ -170,4 +170,34 @@ TEST(BPlusTreeTests, DISABLED_DeleteTest2) {
   remove("test.db");
   remove("test.log");
 }
+
+TEST(BPlusTreeTests, DISABLED_LeafPageRemoveTest) {
+  char *leaf_ptr = new char[300];
+
+  Schema *key_schema = ParseCreateStatement("a bigint");
+  GenericComparator<8> comparator(key_schema);
+
+  BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *leaf_page = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(leaf_ptr);
+  leaf_page->Init(1, 2, 6);
+  std::vector<int64_t> keys = {1, 2, 3, 4, 5};
+  for (auto key : keys) {
+    int64_t value = key & 0xFFFFFFFF;
+    rid.Set(static_cast<int32_t>(key >> 32), value);
+    leaf_page->Insert(key, value, comparator);
+  }
+
+  GenericKey<8> index_key;
+  RID value;
+  index_key.SetFromInteger(4);
+  int new_size = leaf_page->RemoveAndDeleteRecord(index_key);
+  EXPECT_EQ(4, new_size);
+
+  for (auto key : keys) {
+    if (key == 4) continue;
+    index_key.SetFromInteger(key);
+    EXPECT_EQ(leaf_page->Lookup(index_key, &value, comparator), true);
+  }
+  //unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+  //std::shuffle(keys.begin(), keys.end(), std::default_random_engine(seed));
+
 }  // namespace bustub
