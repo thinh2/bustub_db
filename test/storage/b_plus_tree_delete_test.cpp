@@ -261,9 +261,7 @@ TEST(BPlusTreeTests, DISABLED_LeafPageMoveAllTo) {
   std::vector<std::pair<GenericKey<8>, RID>> entries;
   GenericKey<8> index_key;
   for (auto key : keys) {
-    index_key.SetFromInteger(key);
-    int64_t value = key & 0xFFFFFFFF;
-    rid.Set(static_cast<int32_t>(key >> 32), value);
+    setKeyValue(key, index_key, rid);
     entries.push_back(std::make_pair(index_key, rid));
   }
 
@@ -284,4 +282,39 @@ TEST(BPlusTreeTests, DISABLED_LeafPageMoveAllTo) {
     EXPECT_EQ(entries[i].second, recipient_page->GetItem(i).second);
   }
 }
+
+TEST(BPlusTreeTests, DISABLED_LeafPageMoveFirstToEndOf) {
+  char *leaf_ptr = new char[300];
+  char *recipient_ptr = new char[300];
+  Schema *key_schema = ParseCreateStatement("a bigint");
+  GenericComparator<8> comparator(key_schema);
+
+  BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *leaf_page = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(leaf_ptr);
+  BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *recipient_page = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(recipient_ptr);
+
+  leaf_page->Init(1, 2, 6);
+  recipient_page->Init(2, 2, 6);
+  std::vector<int64_t> leaf_keys = {1, 2};
+  GenericKey<8> index_key;
+  RID rid;
+
+  for (auto key : leaf_keys) {
+    setKeyValue(key, index_key, rid);
+    leaf_page->Insert(index_key, rid, comparator);
+  }
+
+  std::vector<int64_t> recipient_keys = {3, 4, 5, 6, 7};
+  for (auto key : recipient_keys) {
+    setKeyValue(key, index_key, rid);
+    recipient_page->Insert(index_key, rid, comparator);
+  }
+
+  recipient_page->MoveFirstToEndOf(leaf_page);
+  EXPECT_EQ(3, leaf_page->GetSize());
+  EXPECT_EQ(4, recipient_page->GetSize());
+
+  auto item = leaf_page->KeyAt(2);
+  EXPECT_EQ(item.ToString(), 3);
+}
+
 }  // namespace bustub
