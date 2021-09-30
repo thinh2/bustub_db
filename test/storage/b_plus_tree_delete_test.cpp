@@ -171,6 +171,12 @@ TEST(BPlusTreeTests, DISABLED_DeleteTest2) {
   remove("test.log");
 }
 
+void setKeyValue(int64_t k, GenericKey<8> &index_key, RID &rid) {
+    index_key.SetFromInteger(k);
+    int64_t value = k & 0xFFFFFFFF;
+    rid.Set((int32_t)(k >> 32), value);
+}
+
 TEST(BPlusTreeTests, DISABLED_LeafPageRemoveTest) {
   char *leaf_ptr = new char[300];
 
@@ -180,24 +186,102 @@ TEST(BPlusTreeTests, DISABLED_LeafPageRemoveTest) {
   BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *leaf_page = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(leaf_ptr);
   leaf_page->Init(1, 2, 6);
   std::vector<int64_t> keys = {1, 2, 3, 4, 5};
+  RID rid;
+  GenericKey<8> index_key;
   for (auto key : keys) {
-    int64_t value = key & 0xFFFFFFFF;
-    rid.Set(static_cast<int32_t>(key >> 32), value);
-    leaf_page->Insert(key, value, comparator);
+    setKeyValue(key, index_key, rid);
+    leaf_page->Insert(index_key, rid, comparator);
   }
 
-  GenericKey<8> index_key;
-  RID value;
   index_key.SetFromInteger(4);
-  int new_size = leaf_page->RemoveAndDeleteRecord(index_key);
+  int new_size = leaf_page->RemoveAndDeleteRecord(index_key, comparator);
   EXPECT_EQ(4, new_size);
 
   for (auto key : keys) {
     if (key == 4) continue;
     index_key.SetFromInteger(key);
-    EXPECT_EQ(leaf_page->Lookup(index_key, &value, comparator), true);
+    EXPECT_EQ(leaf_page->Lookup(index_key, &rid, comparator), true);
   }
-  //unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-  //std::shuffle(keys.begin(), keys.end(), std::default_random_engine(seed));
+}
 
+TEST(BPlusTreeTests, DISABLED_LeafPageMoveLastToFrontOf) {
+  char *leaf_ptr = new char[300];
+  char *recipient_ptr = new char[300];
+  Schema *key_schema = ParseCreateStatement("a bigint");
+  GenericComparator<8> comparator(key_schema);
+
+  BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *leaf_page = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(leaf_ptr);
+  BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *recipient_page = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(recipient_ptr);
+
+  leaf_page->Init(1, 2, 6);
+  recipient_page->Init(2, 2, 6);
+  std::vector<int64_t> leaf_keys = {1, 2, 3, 4, 5};
+  GenericKey<8> index_key;
+  RID rid;
+
+  for (auto key : leaf_keys) {
+    setKeyValue(key, index_key, rid);
+    leaf_page->Insert(index_key, rid, comparator);
+  }
+
+  std::vector<int64_t> recipient_keys = {6, 7};
+  for (auto key : recipient_keys) {
+    setKeyValue(key, index_key, rid);
+    recipient_page->Insert(index_key, rid, comparator);
+  }
+
+  leaf_page->MoveLastToFrontOf(recipient_page);
+  EXPECT_EQ(4, leaf_page->GetSize());
+  EXPECT_EQ(3, recipient_page->GetSize());
+
+  auto item = recipient_page->KeyAt(0);
+  index_key.SetFromInteger(5);
+  EXPECT_EQ(item.ToString(), 5);
+}
+
+TEST(BPlusTreeTests, DISABLED_LeafPageMoveAllTo) {
+  char *leaf_ptr = new char[300];
+  char *recipient_ptr = new char[300];
+  Schema *key_schema = ParseCreateStatement("a bigint");
+  GenericComparator<8> comparator(key_schema);
+
+  BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *leaf_page = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(leaf_ptr);
+  BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *recipient_page = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(recipient_ptr);
+
+  leaf_page->Init(1, 2, 6);
+  leaf_page->SetNextPageId(3);
+
+  recipient_page->Init(2, 2, 6);
+  recipient_page->SetNextPageId(1);
+
+  std::vector<int64_t> keys = {1, 2, 3, 4, 5, 6};
+  int recipient_size = 4;
+  RID rid;
+
+  std::vector<std::pair<GenericKey<8>, RID>> entries;
+  GenericKey<8> index_key;
+  for (auto key : keys) {
+    index_key.SetFromInteger(key);
+    int64_t value = key & 0xFFFFFFFF;
+    rid.Set(static_cast<int32_t>(key >> 32), value);
+    entries.push_back(std::make_pair(index_key, rid));
+  }
+
+  for (int i = 0; i < recipient_size; ++i) {
+    recipient_page->Insert(entries[i].first, entries[i].second, comparator);
+  }
+
+  for (size_t i = recipient_size; i < keys.size(); ++i) {
+    leaf_page->Insert(entries[i].first, entries[i].second, comparator);
+  }
+
+  leaf_page->MoveAllTo(recipient_page);
+  EXPECT_EQ(0, leaf_page->GetSize());
+  EXPECT_EQ(6, recipient_page->GetSize());
+  EXPECT_EQ(3, recipient_page->GetNextPageId());
+  
+  for (int i = 0; i < recipient_page->GetSize(); i++) {
+    EXPECT_EQ(entries[i].second, recipient_page->GetItem(i).second);
+  }
+}
 }  // namespace bustub
