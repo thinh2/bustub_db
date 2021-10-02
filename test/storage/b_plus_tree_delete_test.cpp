@@ -317,4 +317,252 @@ TEST(BPlusTreeTests, DISABLED_LeafPageMoveFirstToEndOf) {
   EXPECT_EQ(item.ToString(), 3);
 }
 
+template<typename Key, typename Comparator>
+page_id_t mock_child_internal_page(BufferPoolManager *bpm, Comparator &comparator, std::vector<int64_t> &keys) {
+  page_id_t ret_page_id, page_id;
+  auto page = bpm->NewPage(&ret_page_id);
+  BPlusTreeInternalPage<Key, page_id_t, Comparator> *internal_page = reinterpret_cast<BPlusTreeInternalPage<Key, page_id_t, Comparator> *>(page->GetData());
+  internal_page->Init(ret_page_id, INVALID_PAGE_ID);
+  bpm->UnpinPage(ret_page_id, true);
+  Key index_key;
+
+  std::pair<Key, page_id_t> *items = new std::pair<Key, page_id_t>[keys.size() + 1];
+
+  page = bpm->NewPage(&page_id);
+  internal_page = reinterpret_cast<BPlusTreeInternalPage<Key, page_id_t, Comparator> *>(page->GetData());
+  internal_page->Init(page_id, ret_page_id);
+  items[0].second = page_id;
+  bpm->UnpinPage(page_id, true);
+
+  int idx = 1;
+  for (auto key: keys) {
+    page = bpm->NewPage(&page_id);
+    internal_page = reinterpret_cast<BPlusTreeInternalPage<Key, page_id_t, Comparator> *>(page->GetData());
+    internal_page->Init(page_id, ret_page_id);
+    bpm->UnpinPage(page_id, true);
+
+    index_key.SetFromInteger(key);
+    items[idx] = std::make_pair(index_key, page_id);
+    idx++;
+  }
+
+  page = bpm->FetchPage(ret_page_id);
+  internal_page = reinterpret_cast<BPlusTreeInternalPage<Key, page_id_t, Comparator> *>(page->GetData());
+  internal_page->CopyNFrom(items, keys.size() + 1, bpm);
+  bpm->UnpinPage(ret_page_id, true);
+  
+  delete[] items;
+  return ret_page_id;
+}
+
+template<typename Key, typename Comparator>
+page_id_t mock_parent_internal_page(BufferPoolManager *bpm, Comparator &comparator, std::vector<int64_t> &keys, std::vector<page_id_t> &values) {
+  page_id_t ret_page_id;
+  auto page = bpm->NewPage(&ret_page_id);
+  BPlusTreeInternalPage<Key, page_id_t, Comparator> *internal_page = reinterpret_cast<BPlusTreeInternalPage<Key, page_id_t, Comparator> *>(page->GetData());
+  internal_page->Init(ret_page_id, INVALID_PAGE_ID);
+  bpm->UnpinPage(ret_page_id, true);
+  Key index_key;
+  std::pair<Key, page_id_t> *items = new std::pair<Key, page_id_t>[values.size()];
+
+  for (size_t i = 0; i < values.size(); ++i) {
+    if (i == 0) {
+      index_key.SetFromInteger(-1);
+    } else {
+      index_key.SetFromInteger(keys[i - 1]);
+    }
+    items[i] = std::make_pair(index_key, values[i]);
+  }
+
+  page = bpm->FetchPage(ret_page_id);
+  internal_page = reinterpret_cast<BPlusTreeInternalPage<Key, page_id_t, Comparator> *>(page->GetData());
+  internal_page->CopyNFrom(items, values.size(), bpm);
+  bpm->UnpinPage(ret_page_id, true);
+  
+  delete[] items;
+  return ret_page_id;
+}
+
+TEST(BPlusTreeTests, DISABLED_InternalPageMoveAllTo) {
+  Schema *key_schema = ParseCreateStatement("a bigint");
+  GenericComparator<8> comparator(key_schema);
+
+  page_id_t page_id;
+  DiskManager *disk_manager = new DiskManager("test.db");
+  BufferPoolManager *bpm = new BufferPoolManager(5, disk_manager);
+
+  std::vector<int64_t> left_keys = {1, 2};
+  std::vector<int64_t> right_keys = {5, 7, 9};
+  GenericKey<8> index_key;
+
+  page_id_t left_page_id = mock_child_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, left_keys);
+  page_id_t right_page_id = mock_child_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, right_keys);
+  
+  Page *left_page = bpm->FetchPage(left_page_id);
+  Page *right_page = bpm->FetchPage(right_page_id);
+
+  BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *internal_left_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, bustub::page_id_t, GenericComparator<8>> *>(left_page->GetData());
+  BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *internal_right_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, bustub::page_id_t, GenericComparator<8>> *>(right_page->GetData());
+
+  index_key.SetFromInteger(4); // middle keys
+  internal_right_page->MoveAllTo(internal_left_page, index_key, bpm);
+  EXPECT_EQ(7, internal_left_page->GetSize());
+  EXPECT_EQ(0, internal_right_page->GetSize());
+
+  BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *internal_page;
+  // check child's parent page id is updated 
+  for (int i = 0; i < internal_left_page->GetSize(); ++i) {
+    page_id = internal_left_page->ValueAt(i);
+    auto page = bpm->FetchPage(page_id);
+    internal_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8>> *>(page->GetData());
+    EXPECT_EQ(internal_page->GetParentPageId(), internal_left_page->GetPageId());
+    bpm->UnpinPage(page_id, true);
+  }
+
+  delete bpm;
+  delete disk_manager;
+}
+
+TEST(BPlusTreeTests, DISABLED_InternalPageMoveFirstToEndOf) {
+  Schema *key_schema = ParseCreateStatement("a bigint");
+  GenericComparator<8> comparator(key_schema);
+
+  DiskManager *disk_manager = new DiskManager("test.db");
+  BufferPoolManager *bpm = new BufferPoolManager(5, disk_manager);
+
+  std::vector<int64_t> left_keys = {1, 2};
+  std::vector<int64_t> right_keys = {5, 7, 9, 11};
+  std::vector<int64_t> parent_keys = {4};
+  GenericKey<8> index_key;
+
+  page_id_t left_page_id = mock_child_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, left_keys);
+  page_id_t right_page_id = mock_child_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, right_keys);
+  
+  Page *left_page = bpm->FetchPage(left_page_id);
+  Page *right_page = bpm->FetchPage(right_page_id);
+
+  BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *internal_left_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, bustub::page_id_t, GenericComparator<8>> *>(left_page->GetData());
+  BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *internal_right_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, bustub::page_id_t, GenericComparator<8>> *>(right_page->GetData());
+
+  std::vector<page_id_t> parent_values;
+  parent_values.push_back(left_page->GetPageId());
+  parent_values.push_back(right_page->GetPageId());
+
+  page_id_t parent_page_id = mock_parent_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, parent_keys, parent_values);
+  index_key.SetFromInteger(parent_keys[0]); // middle keys
+  page_id_t move_page_id = internal_right_page->ValueAt(0);
+
+  internal_right_page->MoveFirstToEndOf(internal_left_page, index_key, bpm);
+  EXPECT_EQ(4, internal_left_page->GetSize());
+  EXPECT_EQ(4, internal_right_page->GetSize());
+
+  left_keys.push_back(parent_keys[0]);
+  int64_t middle_key = right_keys[0];
+  right_keys.erase(right_keys.begin());
+  parent_keys[0] = middle_key;
+
+  Page *page;
+  BPlusTreePage *b_plus_page;
+  // check left page is true
+  for (int i = 1; i < internal_left_page->GetSize(); ++i) {
+    index_key.SetFromInteger(left_keys[i - 1]);
+    EXPECT_EQ(0, comparator(internal_left_page->KeyAt(i), index_key));
+    page = bpm->FetchPage(internal_left_page->ValueAt(i));
+    b_plus_page = reinterpret_cast<BPlusTreePage *>(page->GetData());
+    EXPECT_EQ(b_plus_page->GetParentPageId(), internal_left_page->GetPageId());
+    bpm->UnpinPage(internal_left_page->ValueAt(i), true);
+  }
+
+  // check right page is true
+  for (int i = 1; i < internal_right_page->GetSize(); ++i) {
+    index_key.SetFromInteger(right_keys[i - 1]);
+    EXPECT_EQ(0, comparator(internal_right_page->KeyAt(i), index_key));
+    page = bpm->FetchPage(internal_right_page->ValueAt(i));
+    b_plus_page = reinterpret_cast<BPlusTreePage *>(page->GetData());
+    EXPECT_EQ(b_plus_page->GetParentPageId(), internal_right_page->GetPageId());
+    bpm->UnpinPage(internal_right_page->ValueAt(i), true);
+  }
+
+  page_id_t check_page_id = internal_left_page->ValueAt(internal_left_page->GetSize() - 1);
+  EXPECT_EQ(check_page_id, move_page_id);
+  page = bpm->FetchPage(check_page_id);
+  b_plus_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *>(page->GetData());
+  EXPECT_EQ(b_plus_page->GetParentPageId(), internal_left_page->GetPageId());
+  bpm->UnpinPage(check_page_id, true);
+
+  index_key.SetFromInteger(left_keys[left_keys.size() - 1]);
+  EXPECT_EQ(0, comparator(internal_left_page->KeyAt(internal_left_page->GetSize() - 1), index_key));
+
+  // check parent page is true
+  page = bpm->FetchPage(parent_page_id);
+  BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *parent_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8>> *>(page->GetData());
+  index_key.SetFromInteger(parent_keys[0]);
+  EXPECT_EQ(0, comparator(index_key, parent_page->KeyAt(1)));
+  bpm->UnpinPage(parent_page_id, true);
+
+  delete bpm;
+  delete disk_manager;
+}
+
+TEST(BPlusTreeTests, DISABLED_InternalPageMoveLastToFrontOf) {
+  Schema *key_schema = ParseCreateStatement("a bigint");
+  GenericComparator<8> comparator(key_schema);
+
+  DiskManager *disk_manager = new DiskManager("test.db");
+  BufferPoolManager *bpm = new BufferPoolManager(5, disk_manager);
+
+  std::vector<int64_t> left_keys = {1, 2, 3, 4};
+  std::vector<int64_t> right_keys = {6, 7};
+  std::vector<int64_t> parent_keys = {5};
+  GenericKey<8> index_key;
+
+  page_id_t left_page_id = mock_child_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, left_keys);
+  page_id_t right_page_id = mock_child_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, right_keys);
+  
+  Page *left_page = bpm->FetchPage(left_page_id);
+  Page *right_page = bpm->FetchPage(right_page_id);
+
+  BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *internal_left_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, bustub::page_id_t, GenericComparator<8>> *>(left_page->GetData());
+  BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *internal_right_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, bustub::page_id_t, GenericComparator<8>> *>(right_page->GetData());
+
+  std::vector<page_id_t> parent_values;
+  parent_values.push_back(left_page->GetPageId());
+  parent_values.push_back(right_page->GetPageId());
+
+  page_id_t parent_page_id = mock_parent_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, parent_keys, parent_values);
+  page_id_t move_page_id = internal_left_page->ValueAt(5);
+
+  index_key.SetFromInteger(parent_keys[0]); // middle keys
+  internal_right_page->MoveFirstToEndOf(internal_left_page, index_key, bpm);
+  EXPECT_EQ(4, internal_left_page->GetSize());
+  EXPECT_EQ(4, internal_right_page->GetSize());
+
+  left_keys.push_back(parent_keys[0]);
+  int64_t middle_key = right_keys[0];
+  right_keys.erase(right_keys.begin());
+  parent_keys[0] = middle_key;
+
+  Page *page;
+  BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *b_plus_page;
+
+  EXPECT_EQ(internal_right_page->ValueAt(0), move_page_id);
+  page = bpm->FetchPage(internal_right_page->ValueAt(0));
+  b_plus_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *>(page->GetData());
+  EXPECT_EQ(b_plus_page->GetParentPageId(), internal_right_page->GetPageId());
+  bpm->UnpinPage(internal_right_page->ValueAt(0), true);
+
+  index_key.SetFromInteger(right_keys[0]);
+  EXPECT_EQ(0, comparator(internal_right_page->KeyAt(1), index_key));
+
+  // check parent page is true
+  page = bpm->FetchPage(parent_page_id);
+  BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *parent_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8>> *>(page->GetData());
+  index_key.SetFromInteger(parent_keys[0]);
+  EXPECT_EQ(0, comparator(index_key, parent_page->KeyAt(1)));
+  bpm->UnpinPage(parent_page_id, true);
+
+  delete bpm;
+  delete disk_manager;
+}
+
 }  // namespace bustub
