@@ -177,7 +177,7 @@ void setKeyValue(int64_t k, GenericKey<8> &index_key, RID &rid) {
     rid.Set((int32_t)(k >> 32), value);
 }
 
-TEST(BPlusTreeTests, DISABLED_LeafPageRemoveTest) {
+TEST(BPlusTreeTests, LeafPageRemoveTest) {
   char *leaf_ptr = new char[300];
 
   Schema *key_schema = ParseCreateStatement("a bigint");
@@ -204,7 +204,7 @@ TEST(BPlusTreeTests, DISABLED_LeafPageRemoveTest) {
   }
 }
 
-TEST(BPlusTreeTests, DISABLED_LeafPageMoveLastToFrontOf) {
+TEST(BPlusTreeTests, LeafPageMoveLastToFrontOf) {
   char *leaf_ptr = new char[300];
   char *recipient_ptr = new char[300];
   Schema *key_schema = ParseCreateStatement("a bigint");
@@ -239,7 +239,7 @@ TEST(BPlusTreeTests, DISABLED_LeafPageMoveLastToFrontOf) {
   EXPECT_EQ(item.ToString(), 5);
 }
 
-TEST(BPlusTreeTests, DISABLED_LeafPageMoveAllTo) {
+TEST(BPlusTreeTests, LeafPageMoveAllTo) {
   char *leaf_ptr = new char[300];
   char *recipient_ptr = new char[300];
   Schema *key_schema = ParseCreateStatement("a bigint");
@@ -283,7 +283,7 @@ TEST(BPlusTreeTests, DISABLED_LeafPageMoveAllTo) {
   }
 }
 
-TEST(BPlusTreeTests, DISABLED_LeafPageMoveFirstToEndOf) {
+TEST(BPlusTreeTests, LeafPageMoveFirstToEndOf) {
   char *leaf_ptr = new char[300];
   char *recipient_ptr = new char[300];
   Schema *key_schema = ParseCreateStatement("a bigint");
@@ -309,12 +309,26 @@ TEST(BPlusTreeTests, DISABLED_LeafPageMoveFirstToEndOf) {
     recipient_page->Insert(index_key, rid, comparator);
   }
 
+
+  leaf_keys.push_back(recipient_keys[0]);
+  recipient_keys.erase(recipient_keys.begin());
+
   recipient_page->MoveFirstToEndOf(leaf_page);
   EXPECT_EQ(3, leaf_page->GetSize());
   EXPECT_EQ(4, recipient_page->GetSize());
 
   auto item = leaf_page->KeyAt(2);
   EXPECT_EQ(item.ToString(), 3);
+
+  for (size_t i = 0; i < leaf_keys.size(); ++i) {
+    index_key.SetFromInteger(leaf_keys[i]);
+    EXPECT_EQ(0, comparator(index_key, leaf_page->KeyAt(i)));
+  }
+
+  for (size_t i = 0; i < recipient_keys.size(); ++i) {
+    index_key.SetFromInteger(recipient_keys[i]);
+    EXPECT_EQ(0, comparator(index_key, recipient_page->KeyAt(i)));
+  }
 }
 
 template<typename Key, typename Comparator>
