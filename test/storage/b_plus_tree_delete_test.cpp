@@ -397,7 +397,7 @@ page_id_t mock_parent_internal_page(BufferPoolManager *bpm, Comparator &comparat
   return ret_page_id;
 }
 
-TEST(BPlusTreeTests, DISABLED_InternalPageMoveAllTo) {
+TEST(BPlusTreeTests, InternalPageMoveAllTo) {
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
 
@@ -411,7 +411,7 @@ TEST(BPlusTreeTests, DISABLED_InternalPageMoveAllTo) {
 
   page_id_t left_page_id = mock_child_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, left_keys);
   page_id_t right_page_id = mock_child_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, right_keys);
-  
+
   Page *left_page = bpm->FetchPage(left_page_id);
   Page *right_page = bpm->FetchPage(right_page_id);
 
@@ -437,7 +437,7 @@ TEST(BPlusTreeTests, DISABLED_InternalPageMoveAllTo) {
   delete disk_manager;
 }
 
-TEST(BPlusTreeTests, DISABLED_InternalPageMoveFirstToEndOf) {
+TEST(BPlusTreeTests, InternalPageMoveFirstToEndOf) {
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
 
@@ -462,7 +462,7 @@ TEST(BPlusTreeTests, DISABLED_InternalPageMoveFirstToEndOf) {
   parent_values.push_back(left_page->GetPageId());
   parent_values.push_back(right_page->GetPageId());
 
-  page_id_t parent_page_id = mock_parent_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, parent_keys, parent_values);
+  //page_id_t parent_page_id = mock_parent_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, parent_keys, parent_values);
   index_key.SetFromInteger(parent_keys[0]); // middle keys
   page_id_t move_page_id = internal_right_page->ValueAt(0);
 
@@ -508,17 +508,17 @@ TEST(BPlusTreeTests, DISABLED_InternalPageMoveFirstToEndOf) {
   EXPECT_EQ(0, comparator(internal_left_page->KeyAt(internal_left_page->GetSize() - 1), index_key));
 
   // check parent page is true
-  page = bpm->FetchPage(parent_page_id);
+  /*page = bpm->FetchPage(parent_page_id);
   BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *parent_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8>> *>(page->GetData());
   index_key.SetFromInteger(parent_keys[0]);
   EXPECT_EQ(0, comparator(index_key, parent_page->KeyAt(1)));
-  bpm->UnpinPage(parent_page_id, true);
+  bpm->UnpinPage(parent_page_id, true);*/
 
   delete bpm;
   delete disk_manager;
 }
 
-TEST(BPlusTreeTests, DISABLED_InternalPageMoveLastToFrontOf) {
+TEST(BPlusTreeTests, InternalPageMoveLastToFrontOf) {
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
 
@@ -543,25 +543,25 @@ TEST(BPlusTreeTests, DISABLED_InternalPageMoveLastToFrontOf) {
   parent_values.push_back(left_page->GetPageId());
   parent_values.push_back(right_page->GetPageId());
 
-  page_id_t parent_page_id = mock_parent_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, parent_keys, parent_values);
-  page_id_t move_page_id = internal_left_page->ValueAt(5);
+  //page_id_t parent_page_id = mock_parent_internal_page<GenericKey<8>, GenericComparator<8>>(bpm, comparator, parent_keys, parent_values);
+  page_id_t move_page_id = internal_left_page->ValueAt(4);
 
   index_key.SetFromInteger(parent_keys[0]); // middle keys
-  internal_right_page->MoveFirstToEndOf(internal_left_page, index_key, bpm);
+  internal_left_page->MoveLastToFrontOf(internal_right_page, index_key, bpm);
+
   EXPECT_EQ(4, internal_left_page->GetSize());
   EXPECT_EQ(4, internal_right_page->GetSize());
 
-  left_keys.push_back(parent_keys[0]);
-  int64_t middle_key = right_keys[0];
-  right_keys.erase(right_keys.begin());
-  parent_keys[0] = middle_key;
+  right_keys.insert(right_keys.begin(), parent_keys[0]);
+  left_keys.pop_back();
 
   Page *page;
-  BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *b_plus_page;
+  BPlusTreePage *b_plus_page;
 
+  // check move page id is true
   EXPECT_EQ(internal_right_page->ValueAt(0), move_page_id);
   page = bpm->FetchPage(internal_right_page->ValueAt(0));
-  b_plus_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *>(page->GetData());
+  b_plus_page = reinterpret_cast<BPlusTreePage *>(page->GetData());
   EXPECT_EQ(b_plus_page->GetParentPageId(), internal_right_page->GetPageId());
   bpm->UnpinPage(internal_right_page->ValueAt(0), true);
 
@@ -569,11 +569,33 @@ TEST(BPlusTreeTests, DISABLED_InternalPageMoveLastToFrontOf) {
   EXPECT_EQ(0, comparator(internal_right_page->KeyAt(1), index_key));
 
   // check parent page is true
+  /*
   page = bpm->FetchPage(parent_page_id);
   BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8> > *parent_page = reinterpret_cast<BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8>> *>(page->GetData());
   index_key.SetFromInteger(parent_keys[0]);
   EXPECT_EQ(0, comparator(index_key, parent_page->KeyAt(1)));
   bpm->UnpinPage(parent_page_id, true);
+  */
+
+  // check left page is true
+  for (int i = 1; i < internal_left_page->GetSize(); ++i) {
+    index_key.SetFromInteger(left_keys[i - 1]);
+    EXPECT_EQ(0, comparator(internal_left_page->KeyAt(i), index_key));
+    page = bpm->FetchPage(internal_left_page->ValueAt(i));
+    b_plus_page = reinterpret_cast<BPlusTreePage *>(page->GetData());
+    EXPECT_EQ(b_plus_page->GetParentPageId(), internal_left_page->GetPageId());
+    bpm->UnpinPage(internal_left_page->ValueAt(i), true);
+  }
+
+  // check right page is true
+  for (int i = 1; i < internal_right_page->GetSize(); ++i) {
+    index_key.SetFromInteger(right_keys[i - 1]);
+    EXPECT_EQ(0, comparator(internal_right_page->KeyAt(i), index_key));
+    page = bpm->FetchPage(internal_right_page->ValueAt(i));
+    b_plus_page = reinterpret_cast<BPlusTreePage *>(page->GetData());
+    EXPECT_EQ(b_plus_page->GetParentPageId(), internal_right_page->GetPageId());
+    bpm->UnpinPage(internal_right_page->ValueAt(i), true);
+  }
 
   delete bpm;
   delete disk_manager;
