@@ -127,7 +127,7 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
 
   victim_page->ResetMemory();
   victim_page->page_id_ = *page_id;
-  victim_page->pin_count_ = 0;
+  victim_page->pin_count_ = 1;
   victim_page->is_dirty_ = true;
   replacer_->Pin(free_frame);
   page_table_[victim_page->page_id_] = free_frame;
@@ -141,6 +141,7 @@ bool BufferPoolManager::DeletePageImpl(page_id_t page_id) {
   // 1.   If P does not exist, return true.
   // 2.   If P exists, but has a non-zero pin-count, return false. Someone is using the page.
   // 3.   Otherwise, P can be deleted. Remove P from the page table, reset its metadata and return it to the free list.
+  // TODO: check the delete page implementation
   disk_manager_->DeallocatePage(page_id);
   if (page_table_.find(page_id) == page_table_.end()) {
     return true;
