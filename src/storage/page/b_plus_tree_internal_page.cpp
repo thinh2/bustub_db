@@ -180,7 +180,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyNFrom(MappingType *items, int size, Buf
     // Unpin page
     bustub::BPlusTreePage *bPlusPage = reinterpret_cast<BPlusTreePage*>(page->GetData());
     bPlusPage->SetParentPageId(GetPageId());
-    buffer_pool_manager->UnpinPage(page->GetPageId(), true);
+    buffer_pool_manager->UnpinPage(bPlusPage->GetPageId(), true);
   }
 }
 
@@ -193,7 +193,12 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyNFrom(MappingType *items, int size, Buf
  * NOTE: store key&value pair continuously after deletion
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {}
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {
+  int move_size = GetSize() - index - 1;
+  memmove(array + index, array + index + 1, sizeof(MappingType) * move_size);
+  memset(array + GetSize() - 1, 0, sizeof(MappingType));
+  IncreaseSize(-1);
+}
 
 /*
  * Remove the only key & value pair in internal page and return the value

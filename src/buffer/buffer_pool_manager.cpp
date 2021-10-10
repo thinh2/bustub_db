@@ -43,6 +43,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
   // 2.     If R is dirty, write it back to the disk.
   // 3.     Delete R from the page table and insert P.
   // 4.     Update P's metadata, read in the page content from disk, and then return a pointer to P.
+
   if (page_table_.find(page_id) != page_table_.end()) {
     frame_id_t frame_id = page_table_[page_id];
     replacer_->Pin(frame_id);
@@ -79,6 +80,10 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
 }
 
 bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty) {
+  if (page_table_.find(page_id) == page_table_.end()) {
+    return false;
+  }
+
   frame_id_t frame_id = page_table_[page_id];
   if (pages_[frame_id].pin_count_ <= 0) {
     replacer_->Unpin(frame_id);
@@ -156,6 +161,7 @@ bool BufferPoolManager::DeletePageImpl(page_id_t page_id) {
   pages_[frame_id].ResetMemory();
   pages_[frame_id].is_dirty_ = false;
   pages_[frame_id].pin_count_ = 0;
+  pages_[frame_id].page_id_ = INVALID_PAGE_ID;
   free_list_.push_back(frame_id);
   return true;
 }

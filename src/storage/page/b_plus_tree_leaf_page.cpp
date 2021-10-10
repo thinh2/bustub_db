@@ -192,7 +192,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(const KeyType &key, const 
  * to update the next_page id in the sibling page
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient, const KeyType &middle_key __attribute__((__unused__)), BufferPoolManager *buffer_pool_manager __attribute__((__unused__))) {
   int recipient_size = recipient->GetSize();
  
   memcpy(recipient->array + recipient_size, this->array, sizeof(MappingType) * this->GetSize());
@@ -212,7 +212,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {
  * Remove the first key & value pair from this page to "recipient" page.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient) {
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient, const KeyType &middle_key __attribute__((__unused__)), BufferPoolManager *buffer_pool_manager __attribute__((__unused__))) {
   recipient->CopyLastFrom(this->array[0]);
   memmove(this->array, this->array + 1, sizeof(MappingType) * (this->GetSize() - 1));
   this->IncreaseSize(-1);
@@ -232,7 +232,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyLastFrom(const MappingType &item) {
  * Remove the last key & value pair from this page to "recipient" page.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeLeafPage *recipient) {
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeLeafPage *recipient, const KeyType &middle_key __attribute__((__unused__)), BufferPoolManager *buffer_pool_manager __attribute__((__unused__))) {
   int last_idx = this->GetSize() - 1;
 
   recipient->CopyFirstFrom(this->array[last_idx]);

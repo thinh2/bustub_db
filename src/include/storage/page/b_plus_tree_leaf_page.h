@@ -59,9 +59,9 @@ class BPlusTreeLeafPage : public BPlusTreePage {
 
   // Split and Merge utility methods
   void MoveHalfTo(BPlusTreeLeafPage *recipient, BufferPoolManager *buffer_pool_manager __attribute__((__unused__)));
-  void MoveAllTo(BPlusTreeLeafPage *recipient);
-  void MoveFirstToEndOf(BPlusTreeLeafPage *recipient);
-  void MoveLastToFrontOf(BPlusTreeLeafPage *recipient);
+  void MoveAllTo(BPlusTreeLeafPage *recipient, const KeyType &middle_key __attribute__((__unused__)), BufferPoolManager *buffer_pool_manager __attribute__((__unused__)));
+  void MoveFirstToEndOf(BPlusTreeLeafPage *recipient, const KeyType &middle_key __attribute__((__unused__)), BufferPoolManager *buffer_pool_manager __attribute__((__unused__)));
+  void MoveLastToFrontOf(BPlusTreeLeafPage *recipient, const KeyType &middle_key __attribute__((__unused__)), BufferPoolManager *buffer_pool_manager __attribute__((__unused__)));
 
  private:
   void CopyNFrom(MappingType *items, int size);
