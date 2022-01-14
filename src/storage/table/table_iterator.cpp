@@ -16,6 +16,8 @@
 
 namespace bustub {
 
+TableIterator::TableIterator() : table_heap_(nullptr), tuple_(new Tuple()), txn_(nullptr){}
+
 TableIterator::TableIterator(TableHeap *table_heap, RID rid, Transaction *txn)
     : table_heap_(table_heap), tuple_(new Tuple(rid)), txn_(txn) {
   if (rid.GetPageId() != INVALID_PAGE_ID) {

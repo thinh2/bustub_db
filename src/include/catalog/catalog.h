@@ -124,9 +124,19 @@ class Catalog {
                          size_t keysize) {
     // IndexMetadata -> Index -> IndexInfo
     index_oid_t index_oid = ++next_index_oid_;
-    IndexMetadata index_metadata(index_name, table_name, &schema, key_attrs);
-    auto index = std::unique_ptr<Index> {new BPlusTreeIndex<KeyType, ValueType, KeyComparator>(&index_metadata, bpm_)};
-    auto index_info = std::unique_ptr<IndexInfo> {new IndexInfo(key_schema, index_name, std::move(index), index_oid, table_name, keysize)};
+    IndexMetadata *index_metadata = new IndexMetadata{index_name, table_name, &schema, key_attrs};
+    auto index = std::unique_ptr<Index> {new BPlusTreeIndex<KeyType, ValueType, KeyComparator>(index_metadata, bpm_)};
+    auto index_info = std::make_unique<IndexInfo>(key_schema, index_name, std::move(index), index_oid, table_name, keysize);
+
+    // build index
+    TableIterator table_iterator = GetTable(table_name)->table_->Begin(txn);
+    TableIterator end_iterator = GetTable(table_name)->table_->End();
+    while (table_iterator != end_iterator) {
+      auto index_tuple = table_iterator->KeyFromTuple(schema, key_schema, key_attrs);
+      index_info->index_->InsertEntry(index_tuple, table_iterator->GetRid(), txn);
+      ++table_iterator;
+    }
+
     indexes_[index_oid] = std::move(index_info);
     index_names_[table_name][index_name] = index_oid;
     return indexes_[index_oid].get();
