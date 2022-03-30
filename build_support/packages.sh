@@ -76,7 +76,7 @@ install_mac() {
   brew ls --versions coreutils || brew install coreutils
   brew ls --versions doxygen || brew install doxygen
   brew ls --versions git || brew install git
-  (brew ls --versions llvm | grep 8) || brew install llvm@8
+  (brew ls --versions llvm | grep 13) || brew install llvm@13
 }
 
 install_linux() {
